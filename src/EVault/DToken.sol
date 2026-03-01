@@ -72,7 +72,11 @@ contract DToken is IERC20, Errors, Events {
 
     /// @notice Function required by the ERC20 interface
     /// @dev Transfers are not supported by the DToken directly
-    function transferFrom(address, address, uint256) external pure returns (bool) {
+    function transferFrom(
+        address,
+        address,
+        uint256
+    ) external pure returns (bool) {
         revert E_NotSupported();
     }
 

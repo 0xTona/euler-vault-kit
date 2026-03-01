@@ -63,14 +63,19 @@ abstract contract Dispatch is
     /// @notice EVault's constructor
     /// @dev It is highly recommended to deploy fresh modules for every new EVault deployment. Particular care must
     /// also be taken to ensure the modules are deployed with the exact same values of the `Integrations` struct.
-    constructor(Integrations memory integrations, DeployedModules memory modules) Base(integrations) {
+    constructor(
+        Integrations memory integrations,
+        DeployedModules memory modules
+    ) Base(integrations) {
         MODULE_INITIALIZE = AddressUtils.checkContract(modules.initialize);
         MODULE_TOKEN = AddressUtils.checkContract(modules.token);
         MODULE_VAULT = AddressUtils.checkContract(modules.vault);
         MODULE_BORROWING = AddressUtils.checkContract(modules.borrowing);
         MODULE_LIQUIDATION = AddressUtils.checkContract(modules.liquidation);
         MODULE_RISKMANAGER = AddressUtils.checkContract(modules.riskManager);
-        MODULE_BALANCE_FORWARDER = AddressUtils.checkContract(modules.balanceForwarder);
+        MODULE_BALANCE_FORWARDER = AddressUtils.checkContract(
+            modules.balanceForwarder
+        );
         MODULE_GOVERNANCE = AddressUtils.checkContract(modules.governance);
     }
 
@@ -113,8 +118,12 @@ abstract contract Dispatch is
             let result := delegatecall(gas(), calldataload(4), 0, size, 0, 0)
             returndatacopy(0, 0, returndatasize())
             switch result
-            case 0 { revert(0, returndatasize()) }
-            default { return(0, returndatasize()) }
+            case 0 {
+                revert(0, returndatasize())
+            }
+            default {
+                return(0, returndatasize())
+            }
         }
     }
 
@@ -124,8 +133,12 @@ abstract contract Dispatch is
             let result := delegatecall(gas(), module, 0, calldatasize(), 0, 0)
             returndatacopy(0, 0, returndatasize())
             switch result
-            case 0 { revert(0, returndatasize()) }
-            default { return(0, returndatasize()) }
+            case 0 {
+                revert(0, returndatasize())
+            }
+            default {
+                return(0, returndatasize())
+            }
         }
     }
 
@@ -134,8 +147,14 @@ abstract contract Dispatch is
             // Construct optimized custom call data for `this.viewDelegate()`
             // [selector 4B][module address 32B][calldata with stripped proxy metadata][caller address 20B]
             // Proxy metadata will be appended back by the proxy on staticcall
-            mstore(0, 0x1fe8b95300000000000000000000000000000000000000000000000000000000)
-            let strippedCalldataSize := sub(calldatasize(), PROXY_METADATA_LENGTH)
+            mstore(
+                0,
+                0x1fe8b95300000000000000000000000000000000000000000000000000000000
+            )
+            let strippedCalldataSize := sub(
+                calldatasize(),
+                PROXY_METADATA_LENGTH
+            )
             // we do the mstore first offset by -12 so the 20 address bytes align right behind 36 + strippedCalldataSize
             // note that it can write into the module address if the calldata is less than 12 bytes, therefore write
             // before we write module
@@ -143,11 +162,22 @@ abstract contract Dispatch is
             mstore(4, module)
             calldatacopy(36, 0, strippedCalldataSize)
             // insize: stripped calldatasize + 36 (signature and module address) + 20 (caller address)
-            let result := staticcall(gas(), address(), 0, add(strippedCalldataSize, 56), 0, 0)
+            let result := staticcall(
+                gas(),
+                address(),
+                0,
+                add(strippedCalldataSize, 56),
+                0,
+                0
+            )
             returndatacopy(0, 0, returndatasize())
             switch result
-            case 0 { revert(0, returndatasize()) }
-            default { return(0, returndatasize()) }
+            case 0 {
+                revert(0, returndatasize())
+            }
+            default {
+                return(0, returndatasize())
+            }
         }
     }
 
@@ -156,7 +186,10 @@ abstract contract Dispatch is
         assembly {
             let mainCalldataLength := sub(calldatasize(), PROXY_METADATA_LENGTH)
 
-            mstore(0, 0x1f8b521500000000000000000000000000000000000000000000000000000000) // EVC.call signature
+            mstore(
+                0,
+                0x1f8b521500000000000000000000000000000000000000000000000000000000
+            ) // EVC.call signature
             mstore(4, address()) // EVC.call 1st argument - address(this)
             mstore(36, caller()) // EVC.call 2nd argument - msg.sender
             mstore(68, callvalue()) // EVC.call 3rd argument - msg.value
@@ -167,12 +200,24 @@ abstract contract Dispatch is
             // abi encoded bytes array should be zero padded so its length is a multiple of 32
             // store zero word after msg.data bytes and round up mainCalldataLength to nearest multiple of 32
             mstore(add(164, mainCalldataLength), 0)
-            let result := call(gas(), _evc, callvalue(), 0, add(164, and(add(mainCalldataLength, 31), not(31))), 0, 0)
+            let result := call(
+                gas(),
+                _evc,
+                callvalue(),
+                0,
+                add(164, and(add(mainCalldataLength, 31), not(31))),
+                0,
+                0
+            )
 
             returndatacopy(0, 0, returndatasize())
             switch result
-            case 0 { revert(0, returndatasize()) }
-            default { return(64, sub(returndatasize(), 64)) } // strip bytes encoding from call return
+            case 0 {
+                revert(0, returndatasize())
+            }
+            default {
+                return(64, sub(returndatasize(), 64))
+            } // strip bytes encoding from call return
         }
     }
 }
