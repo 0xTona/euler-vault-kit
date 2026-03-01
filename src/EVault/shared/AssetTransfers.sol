@@ -15,8 +15,17 @@ abstract contract AssetTransfers is Base {
     using TypesLib for uint256;
     using SafeERC20Lib for IERC20;
 
-    function pullAssets(VaultCache memory vaultCache, address from, Assets amount) internal virtual {
-        vaultCache.asset.safeTransferFrom(from, address(this), amount.toUint(), permit2);
+    function pullAssets(
+        VaultCache memory vaultCache,
+        address from,
+        Assets amount
+    ) internal virtual {
+        vaultCache.asset.safeTransferFrom(
+            from,
+            address(this),
+            amount.toUint(),
+            permit2
+        );
         vaultStorage.cash = vaultCache.cash = vaultCache.cash + amount;
     }
 
@@ -30,10 +39,15 @@ abstract contract AssetTransfers is Base {
     /// receiver, the transfer will be prevented. However, there is no guarantee that EVC will have the owner
     /// registered. If the asset itself is compatible with EVC, it is safe to set the flag and send the asset to a
     /// non-owner sub-account.
-    function pushAssets(VaultCache memory vaultCache, address to, Assets amount) internal virtual {
+    function pushAssets(
+        VaultCache memory vaultCache,
+        address to,
+        Assets amount
+    ) internal virtual {
         if (
-            to == address(0)
-                || (vaultCache.configFlags.isNotSet(CFG_EVC_COMPATIBLE_ASSET) && isKnownNonOwnerAccount(to))
+            to == address(0) ||
+            (vaultCache.configFlags.isNotSet(CFG_EVC_COMPATIBLE_ASSET) &&
+                isKnownNonOwnerAccount(to))
         ) {
             revert E_BadAssetReceiver();
         }

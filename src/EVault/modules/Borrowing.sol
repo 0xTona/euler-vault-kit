@@ -17,17 +17,34 @@ import "../shared/types/Types.sol";
 /// @custom:security-contact security@euler.xyz
 /// @author Euler Labs (https://www.eulerlabs.com/)
 /// @notice An EVault module handling borrowing and repaying of vault assets
-abstract contract BorrowingModule is IBorrowing, AssetTransfers, BalanceUtils, LiquidityUtils {
+abstract contract BorrowingModule is
+    IBorrowing,
+    AssetTransfers,
+    BalanceUtils,
+    LiquidityUtils
+{
     using TypesLib for uint256;
     using SafeERC20Lib for IERC20;
 
     /// @inheritdoc IBorrowing
-    function totalBorrows() public view virtual nonReentrantView returns (uint256) {
+    function totalBorrows()
+        public
+        view
+        virtual
+        nonReentrantView
+        returns (uint256)
+    {
         return loadVault().totalBorrows.toAssetsUp().toUint();
     }
 
     /// @inheritdoc IBorrowing
-    function totalBorrowsExact() public view virtual nonReentrantView returns (uint256) {
+    function totalBorrowsExact()
+        public
+        view
+        virtual
+        nonReentrantView
+        returns (uint256)
+    {
         return loadVault().totalBorrows.toUint();
     }
 
@@ -37,22 +54,38 @@ abstract contract BorrowingModule is IBorrowing, AssetTransfers, BalanceUtils, L
     }
 
     /// @inheritdoc IBorrowing
-    function debtOf(address account) public view virtual nonReentrantView returns (uint256) {
+    function debtOf(
+        address account
+    ) public view virtual nonReentrantView returns (uint256) {
         return getCurrentOwed(loadVault(), account).toAssetsUp().toUint();
     }
 
     /// @inheritdoc IBorrowing
-    function debtOfExact(address account) public view virtual nonReentrantView returns (uint256) {
+    function debtOfExact(
+        address account
+    ) public view virtual nonReentrantView returns (uint256) {
         return getCurrentOwed(loadVault(), account).toUint();
     }
 
     /// @inheritdoc IBorrowing
-    function interestRate() public view virtual nonReentrantView returns (uint256) {
+    function interestRate()
+        public
+        view
+        virtual
+        nonReentrantView
+        returns (uint256)
+    {
         return computeInterestRateView(loadVault());
     }
 
     /// @inheritdoc IBorrowing
-    function interestAccumulator() public view virtual nonReentrantView returns (uint256) {
+    function interestAccumulator()
+        public
+        view
+        virtual
+        nonReentrantView
+        returns (uint256)
+    {
         return loadVault().interestAccumulator;
     }
 
@@ -62,28 +95,61 @@ abstract contract BorrowingModule is IBorrowing, AssetTransfers, BalanceUtils, L
     }
 
     /// @inheritdoc IBorrowing
-    function borrow(uint256 amount, address receiver) public virtual nonReentrant returns (uint256) {
-        (VaultCache memory vaultCache, address account) = initOperation(OP_BORROW, CHECKACCOUNT_CALLER);
+    function borrow(
+        uint256 amount,
+        address receiver
+    ) public virtual nonReentrant returns (uint256) {
+        //@note
+        //Intention
+        //  1. Init operation
+        //  2. Check amount and cash
+        //  3. Update borrow balance and total borrows
+        //  4. Push assets to the receiver
 
-        Assets assets = amount == type(uint256).max ? vaultCache.cash : amount.toAssets();
+        //1
+        (VaultCache memory vaultCache, address account) = initOperation(
+            OP_BORROW,
+            CHECKACCOUNT_CALLER
+        );
+
+        //2 {
+        Assets assets = amount == type(uint256).max
+            ? vaultCache.cash
+            : amount.toAssets();
         if (assets.isZero()) return 0;
-
         if (assets > vaultCache.cash) revert E_InsufficientCash();
+        //} 2
 
+        //3
         increaseBorrow(vaultCache, account, assets);
 
+        //4
         pushAssets(vaultCache, receiver, assets);
 
         return assets.toUint();
     }
 
     /// @inheritdoc IBorrowing
-    function repay(uint256 amount, address receiver) public virtual nonReentrant returns (uint256) {
-        (VaultCache memory vaultCache, address account) = initOperation(OP_REPAY, CHECKACCOUNT_NONE);
+    function repay(
+        uint256 amount,
+        address receiver
+    ) public virtual nonReentrant returns (uint256) {
+        //@note
+        //Intention
+        // 1. Init operation
+        // 2.
 
-        uint256 owed = getCurrentOwed(vaultCache, receiver).toAssetsUp().toUint();
+        (VaultCache memory vaultCache, address account) = initOperation(
+            OP_REPAY,
+            CHECKACCOUNT_NONE
+        );
 
-        Assets assets = (amount == type(uint256).max ? owed : amount).toAssets();
+        uint256 owed = getCurrentOwed(vaultCache, receiver)
+            .toAssetsUp()
+            .toUint();
+
+        Assets assets = (amount == type(uint256).max ? owed : amount)
+            .toAssets();
         if (assets.isZero()) return 0;
 
         pullAssets(vaultCache, account, assets);
@@ -94,8 +160,14 @@ abstract contract BorrowingModule is IBorrowing, AssetTransfers, BalanceUtils, L
     }
 
     /// @inheritdoc IBorrowing
-    function repayWithShares(uint256 amount, address receiver) public virtual nonReentrant returns (uint256, uint256) {
-        (VaultCache memory vaultCache, address account) = initOperation(OP_REPAY_WITH_SHARES, CHECKACCOUNT_CALLER);
+    function repayWithShares(
+        uint256 amount,
+        address receiver
+    ) public virtual nonReentrant returns (uint256, uint256) {
+        (VaultCache memory vaultCache, address account) = initOperation(
+            OP_REPAY_WITH_SHARES,
+            CHECKACCOUNT_CALLER
+        );
 
         Assets owed = getCurrentOwed(vaultCache, receiver).toAssetsUp();
         if (owed.isZero()) return (0, 0);
@@ -128,12 +200,20 @@ abstract contract BorrowingModule is IBorrowing, AssetTransfers, BalanceUtils, L
     }
 
     /// @inheritdoc IBorrowing
-    function pullDebt(uint256 amount, address from) public virtual nonReentrant {
-        (VaultCache memory vaultCache, address account) = initOperation(OP_PULL_DEBT, CHECKACCOUNT_CALLER);
+    function pullDebt(
+        uint256 amount,
+        address from
+    ) public virtual nonReentrant {
+        (VaultCache memory vaultCache, address account) = initOperation(
+            OP_PULL_DEBT,
+            CHECKACCOUNT_CALLER
+        );
 
         if (from == account) revert E_SelfTransfer();
 
-        Assets assets = amount == type(uint256).max ? getCurrentOwed(vaultCache, from).toAssetsUp() : amount.toAssets();
+        Assets assets = amount == type(uint256).max
+            ? getCurrentOwed(vaultCache, from).toAssetsUp()
+            : amount.toAssets();
 
         if (assets.isZero()) return;
         transferBorrow(vaultCache, from, account, assets);
@@ -142,11 +222,14 @@ abstract contract BorrowingModule is IBorrowing, AssetTransfers, BalanceUtils, L
     }
 
     /// @inheritdoc IBorrowing
-    function flashLoan(uint256 amount, bytes calldata data) public virtual nonReentrant {
+    function flashLoan(
+        uint256 amount,
+        bytes calldata data
+    ) public virtual nonReentrant {
         address account = EVCAuthenticate();
         callHook(vaultStorage.hookedOps, OP_FLASHLOAN, account);
 
-        (IERC20 asset,,) = ProxyUtils.metadata();
+        (IERC20 asset, , ) = ProxyUtils.metadata();
 
         uint256 origBalance = asset.balanceOf(address(this));
 
@@ -154,7 +237,8 @@ abstract contract BorrowingModule is IBorrowing, AssetTransfers, BalanceUtils, L
 
         IFlashLoan(account).onFlashLoan(data);
 
-        if (asset.balanceOf(address(this)) < origBalance) revert E_FlashLoanNotRepaid();
+        if (asset.balanceOf(address(this)) < origBalance)
+            revert E_FlashLoanNotRepaid();
     }
 
     /// @inheritdoc IBorrowing

@@ -12,6 +12,13 @@ import "../Constants.sol";
 /// @dev The owed type tracks borrowed funds in asset units scaled up by shifting left INTERNAL_DEBT_PRECISION_SHIFT
 /// bits. Increased precision allows for accurate interest accounting.
 library OwedLib {
+    //@note
+    //Intention
+    //  assets: amount of assets
+    //      -> cash, feeAssets
+    //  owed: amount of assets shifted left by INTERNAL_DEBT_PRECISION_SHIFT bits
+    //      This allows to track interest with higher precision, as interest is calculated on the owed amount and then
+    //      -> totalBorrow
     function toUint(Owed self) internal pure returns (uint256) {
         return Owed.unwrap(self);
     }
@@ -25,7 +32,10 @@ library OwedLib {
     function toAssetsDown(Owed amount) internal pure returns (Assets) {
         if (Owed.unwrap(amount) == 0) return Assets.wrap(0);
 
-        return TypesLib.toAssets(Owed.unwrap(amount) >> INTERNAL_DEBT_PRECISION_SHIFT);
+        return
+            TypesLib.toAssets(
+                Owed.unwrap(amount) >> INTERNAL_DEBT_PRECISION_SHIFT
+            );
     }
 
     function isDust(Owed self) internal pure returns (bool) {
@@ -37,8 +47,15 @@ library OwedLib {
         return Owed.unwrap(self) == 0;
     }
 
-    function mulDiv(Owed self, uint256 multiplier, uint256 divisor) internal pure returns (Owed) {
-        return TypesLib.toOwed(uint256(Owed.unwrap(self)) * multiplier / divisor);
+    function mulDiv(
+        Owed self,
+        uint256 multiplier,
+        uint256 divisor
+    ) internal pure returns (Owed) {
+        return
+            TypesLib.toOwed(
+                (uint256(Owed.unwrap(self)) * multiplier) / divisor
+            );
     }
 
     function addUnchecked(Owed self, Owed b) internal pure returns (Owed) {
@@ -54,7 +71,9 @@ library OwedLib {
     }
 
     function toAssetsUpUint(uint256 owedExact) internal pure returns (uint256) {
-        return (owedExact + (1 << INTERNAL_DEBT_PRECISION_SHIFT) - 1) >> INTERNAL_DEBT_PRECISION_SHIFT;
+        return
+            (owedExact + (1 << INTERNAL_DEBT_PRECISION_SHIFT) - 1) >>
+            INTERNAL_DEBT_PRECISION_SHIFT;
     }
 }
 
