@@ -40,8 +40,12 @@ abstract contract Base is EVCClient, Cache {
     }
 
     constructor(Integrations memory integrations) EVCClient(integrations.evc) {
-        protocolConfig = IProtocolConfig(AddressUtils.checkContract(integrations.protocolConfig));
-        sequenceRegistry = ISequenceRegistry(AddressUtils.checkContract(integrations.sequenceRegistry));
+        protocolConfig = IProtocolConfig(
+            AddressUtils.checkContract(integrations.protocolConfig)
+        );
+        sequenceRegistry = ISequenceRegistry(
+            AddressUtils.checkContract(integrations.sequenceRegistry)
+        );
         balanceTracker = IBalanceTracker(integrations.balanceTracker);
         permit2 = integrations.permit2;
     }
@@ -66,8 +70,11 @@ abstract contract Base is EVCClient, Cache {
             // when the view function is inlined in the EVault.sol or the hook target should be taken from the trailing
             // data appended by the delegateToModuleView function used by useView modifier. In the latter case, it is
             // safe to consume the trailing data as we know we are inside useView because msg.sender == address(this)
-            if (msg.sender != hookTarget && !(msg.sender == address(this) && ProxyUtils.useViewCaller() == hookTarget))
-            {
+            if (
+                msg.sender != hookTarget &&
+                !(msg.sender == address(this) &&
+                    ProxyUtils.useViewCaller() == hookTarget)
+            ) {
                 revert E_Reentrancy();
             }
         }
@@ -78,26 +85,48 @@ abstract contract Base is EVCClient, Cache {
     // Queue vault and maybe account checks in the EVC (caller, current, onBehalfOf or none).
     // If needed, revert if this contract is not the controller of the authenticated account.
     // Returns the VaultCache and active account.
-    function initOperation(uint32 operation, address accountToCheck)
-        internal
-        virtual
-        returns (VaultCache memory vaultCache, address account)
-    {
+    function initOperation(
+        uint32 operation,
+        address accountToCheck
+    ) internal virtual returns (VaultCache memory vaultCache, address account) {
+        //@note
+        //Intention
+        //  Parameters:
+        //      operation: the operation the user is performing
+        //      accountToCheck: account to be checked status in EVC
+        //          - CHECKACCOUNT_CALLER -> the current account
+        //          - CHECKACCOUNT_NONE -> no account check will be queueds
+        //  Process:
+        //      1) update vaultCache
+        //      2) Get current account
+        //          - CONTROLLER_NEUTRAL_OPS & operation == 0 = true -> address(this) must be controller of account
+        //      3) Call hook if needed
+        //      4) Check vault status and maybe account status
+        //      5) If snapshot is not initialized, initialize it with current cash and total borrows
+        //Follow-up
+        // 5) ?
+
         vaultCache = updateVault();
-        account = EVCAuthenticateDeferred(CONTROLLER_NEUTRAL_OPS & operation == 0);
+        account = EVCAuthenticateDeferred(
+            CONTROLLER_NEUTRAL_OPS & operation == 0
+        );
 
         callHook(vaultCache.hookedOps, operation, account);
-        EVCRequireStatusChecks(accountToCheck == CHECKACCOUNT_CALLER ? account : accountToCheck);
+        EVCRequireStatusChecks(
+            accountToCheck == CHECKACCOUNT_CALLER ? account : accountToCheck
+        );
 
         // The snapshot is used only to verify that supply increased when checking the supply cap, and to verify that
         // the borrows increased when checking the borrowing cap. Caps are not checked when the capped variables
         // decrease (become safer). For this reason, the snapshot is disabled if both caps are disabled.
         // The snapshot is cleared during the vault status check hence the vault status check must not be forgiven.
         if (
-            !vaultCache.snapshotInitialized
-                && !(vaultCache.supplyCap == type(uint256).max && vaultCache.borrowCap == type(uint256).max)
+            !vaultCache.snapshotInitialized &&
+            !(vaultCache.supplyCap == type(uint256).max &&
+                vaultCache.borrowCap == type(uint256).max)
         ) {
-            vaultStorage.snapshotInitialized = vaultCache.snapshotInitialized = true;
+            vaultStorage.snapshotInitialized = vaultCache
+                .snapshotInitialized = true;
             snapshot.set(vaultCache.cash, vaultCache.totalBorrows.toAssetsUp());
         }
     }
@@ -105,40 +134,69 @@ abstract contract Base is EVCClient, Cache {
     // Checks whether the operation is disabled and returns the result of the check.
     // An operation is considered disabled if a hook has been installed for it and the
     // hook target is zero address.
-    function isOperationDisabled(Flags hookedOps, uint32 operation) internal view returns (bool) {
-        return hookedOps.isSet(operation) && vaultStorage.hookTarget == address(0);
+    function isOperationDisabled(
+        Flags hookedOps,
+        uint32 operation
+    ) internal view returns (bool) {
+        return
+            hookedOps.isSet(operation) && vaultStorage.hookTarget == address(0);
     }
 
     // Checks whether a hook has been installed for the operation and if so, invokes the hook target.
     // If the hook target is zero address, this will revert.
-    function callHook(Flags hookedOps, uint32 operation, address caller) internal virtual {
+    function callHook(
+        Flags hookedOps,
+        uint32 operation,
+        address caller
+    ) internal virtual {
         if (hookedOps.isNotSet(operation)) return;
 
         invokeHookTarget(caller);
     }
 
     // Same as callHook, but acquires the reentrancy lock when calling the hook
-    function callHookWithLock(Flags hookedOps, uint32 operation, address caller) internal virtual {
+    function callHookWithLock(
+        Flags hookedOps,
+        uint32 operation,
+        address caller
+    ) internal virtual {
         if (hookedOps.isNotSet(operation)) return;
 
         invokeHookTargetWithLock(caller);
     }
 
     function invokeHookTarget(address caller) private {
+        //@note
+        //Intention
+        //  1) get hookTarget from storage
+        //      invalid hookTarget
+        //  2) call hookTarget with original msg.data + caller address appended
+
+        //1  {
         address hookTarget = vaultStorage.hookTarget;
-
         if (hookTarget == address(0)) revert E_OperationDisabled();
+        //} 1
 
-        (bool success, bytes memory data) = hookTarget.call(abi.encodePacked(msg.data, caller));
-
+        //2 {
+        (bool success, bytes memory data) = hookTarget.call(
+            abi.encodePacked(msg.data, caller)
+        );
         if (!success) RevertBytes.revertBytes(data);
+        //} 2
     }
 
     function invokeHookTargetWithLock(address caller) private nonReentrant {
+        //@note
+        //Intention
+        //  `invokeHookTarget()` with reentrancy lock
+
         invokeHookTarget(caller);
     }
 
-    function logVaultStatus(VaultCache memory a, uint256 interestRate) internal {
+    function logVaultStatus(
+        VaultCache memory a,
+        uint256 interestRate
+    ) internal {
         emit VaultStatus(
             a.totalShares.toUint(),
             a.totalBorrows.toAssetsUp().toUint(),

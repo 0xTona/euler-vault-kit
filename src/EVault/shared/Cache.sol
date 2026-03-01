@@ -17,11 +17,25 @@ import "./types/Types.sol";
 contract Cache is Storage, Errors {
     using TypesLib for uint256;
 
+    //@note
+    //Flow
+    //  `updateVault()` at the end of a modifying transaction
+    //  `loadVault()` at the beginning of a transaction which needs to read from storage
+
     // Returns an updated VaultCache
     // If different from VaultStorage, updates VaultStorage
-    function updateVault() internal virtual returns (VaultCache memory vaultCache) {
+    function updateVault()
+        internal
+        virtual
+        returns (VaultCache memory vaultCache)
+    {
+        //@note
+        //Intention
+        //  If time passed -> update vaultStorage with accrued interest and fees, then return updated values as vaultCache
+        //  Else           -> return vaultStorage values as vaultCache
         if (initVaultCache(vaultCache)) {
-            vaultStorage.lastInterestAccumulatorUpdate = vaultCache.lastInterestAccumulatorUpdate;
+            vaultStorage.lastInterestAccumulatorUpdate = vaultCache
+                .lastInterestAccumulatorUpdate;
             vaultStorage.accumulatedFees = vaultCache.accumulatedFees;
 
             vaultStorage.totalShares = vaultCache.totalShares;
@@ -32,23 +46,51 @@ contract Cache is Storage, Errors {
     }
 
     // Returns an updated VaultCache
-    function loadVault() internal view virtual returns (VaultCache memory vaultCache) {
+    function loadVault()
+        internal
+        view
+        virtual
+        returns (VaultCache memory vaultCache)
+    {
         initVaultCache(vaultCache);
     }
 
     // Takes a VaultCache struct, overwrites it with VaultStorage data and, if time has passed since VaultStorage
     // was last updated, updates VaultStorage.
     // Returns a boolean if the cache is different from storage. VaultCache param is updated to this block.
-    function initVaultCache(VaultCache memory vaultCache) internal view returns (bool dirty) {
+    function initVaultCache(
+        VaultCache memory vaultCache
+    ) internal view returns (bool dirty) {
+        //@note
+        //Intention
+        //  1) populate vaultCache with proxy metadata
+        //  2) copy all relevant fields from vaultStorage into vaultCache
+        //  3) deltaT = block.timestamp - vaultCache.lastInterestAccumulatorUpdate
+        //  4) if deltaT>0, mark dirty and:
+        //      4.1) newAccumulator  = interestAccumulator * (1 + interestRate)^deltaT
+        //                        OR= interestAccumulator                                   (overflow)
+        //      4.2) newTotalBorrows = totalBorrows * newAccumulator / interestAccumulator
+        //                        OR= totalBorrows                                          (overflow)
+        //      4.3) feeAssets = (newTotalBorrows - totalBorrows) * interestFee
+        //           if feeAssets > 0 -> Mint fee share: accumulatedFees += newTotalShares - totalShares
+        //      4.4) Update vaultCache
+        //Follow-up
+        //  1) ?
+
         dirty = false;
 
         // Proxy metadata
-
-        (vaultCache.asset, vaultCache.oracle, vaultCache.unitOfAccount) = ProxyUtils.metadata();
+        //1
+        (
+            vaultCache.asset,
+            vaultCache.oracle,
+            vaultCache.unitOfAccount
+        ) = ProxyUtils.metadata();
 
         // Storage loads
-
-        vaultCache.lastInterestAccumulatorUpdate = vaultStorage.lastInterestAccumulatorUpdate;
+        //2 {
+        vaultCache.lastInterestAccumulatorUpdate = vaultStorage
+            .lastInterestAccumulatorUpdate;
         vaultCache.cash = vaultStorage.cash;
         vaultCache.supplyCap = vaultStorage.supplyCap.resolve();
         vaultCache.borrowCap = vaultStorage.borrowCap.resolve();
@@ -62,10 +104,14 @@ contract Cache is Storage, Errors {
         vaultCache.configFlags = vaultStorage.configFlags;
 
         vaultCache.interestAccumulator = vaultStorage.interestAccumulator;
+        //} 2
 
         // Update interest accumulator and fees balance
+        //3
+        uint256 deltaT = block.timestamp -
+            vaultCache.lastInterestAccumulatorUpdate;
 
-        uint256 deltaT = block.timestamp - vaultCache.lastInterestAccumulatorUpdate;
+        //4 {
         if (deltaT > 0) {
             dirty = true;
 
@@ -79,7 +125,11 @@ contract Cache is Storage, Errors {
 
             unchecked {
                 uint256 intermediate;
-                (uint256 multiplier, bool overflow) = RPow.rpow(interestRate + 1e27, deltaT, 1e27);
+                (uint256 multiplier, bool overflow) = RPow.rpow(
+                    interestRate + 1e27,
+                    deltaT,
+                    1e27
+                );
 
                 // if exponentiation or accumulator update overflows, keep the old accumulator
                 if (!overflow) {
@@ -91,14 +141,17 @@ contract Cache is Storage, Errors {
 
                 intermediate = newTotalBorrows * newInterestAccumulator;
                 if (newTotalBorrows == intermediate / newInterestAccumulator) {
-                    newTotalBorrows = intermediate / vaultCache.interestAccumulator;
+                    newTotalBorrows =
+                        intermediate /
+                        vaultCache.interestAccumulator;
                 }
             }
 
             uint256 newAccumulatedFees = vaultCache.accumulatedFees.toUint();
             uint256 newTotalShares = vaultCache.totalShares.toUint();
-            uint256 feeAssets = (newTotalBorrows - vaultCache.totalBorrows.toUint()) * interestFee.toUint16()
-                / (uint256(CONFIG_SCALE) << INTERNAL_DEBT_PRECISION_SHIFT);
+            uint256 feeAssets = ((newTotalBorrows -
+                vaultCache.totalBorrows.toUint()) * interestFee.toUint16()) /
+                (uint256(CONFIG_SCALE) << INTERNAL_DEBT_PRECISION_SHIFT);
 
             if (feeAssets != 0) {
                 // Fee shares are minted at a slightly worse price than user deposits (unless the exchange rate of
@@ -108,9 +161,14 @@ contract Cache is Storage, Errors {
                 // operation, the pre-money conversion is performed. This behavior is considered safe and reduces code
                 // complexity and gas costs, while its effect is positive for regular users (unless the exchange rate is
                 // abnormally < 1)
-                uint256 newTotalAssets = vaultCache.cash.toUint() + OwedLib.toAssetsUpUint(newTotalBorrows);
-                newTotalShares = newTotalAssets * newTotalShares / (newTotalAssets - feeAssets);
-                newAccumulatedFees += newTotalShares - vaultCache.totalShares.toUint();
+                uint256 newTotalAssets = vaultCache.cash.toUint() +
+                    OwedLib.toAssetsUpUint(newTotalBorrows);
+                newTotalShares =
+                    (newTotalAssets * newTotalShares) /
+                    (newTotalAssets - feeAssets);
+                newAccumulatedFees +=
+                    newTotalShares -
+                    vaultCache.totalShares.toUint();
             }
 
             // Store new values in vaultCache, only if no overflows will occur. Fees are not larger than total shares,
@@ -118,18 +176,28 @@ contract Cache is Storage, Errors {
             if (newTotalBorrows <= MAX_SANE_DEBT_AMOUNT) {
                 vaultCache.totalBorrows = newTotalBorrows.toOwed();
                 vaultCache.interestAccumulator = newInterestAccumulator;
-                vaultCache.lastInterestAccumulatorUpdate = uint48(block.timestamp);
+                vaultCache.lastInterestAccumulatorUpdate = uint48(
+                    block.timestamp
+                );
 
-                if (newTotalShares != vaultCache.totalShares.toUint() && newTotalShares <= MAX_SANE_AMOUNT) {
+                if (
+                    newTotalShares != vaultCache.totalShares.toUint() &&
+                    newTotalShares <= MAX_SANE_AMOUNT
+                ) {
                     vaultCache.accumulatedFees = newAccumulatedFees.toShares();
                     vaultCache.totalShares = newTotalShares.toShares();
                 }
             }
+            //} 4
         }
     }
 
-    function totalAssetsInternal(VaultCache memory vaultCache) internal pure virtual returns (uint256) {
+    function totalAssetsInternal(
+        VaultCache memory vaultCache
+    ) internal pure virtual returns (uint256) {
         // total assets can exceed Assets max amount (MAX_SANE_AMOUNT)
-        return vaultCache.cash.toUint() + vaultCache.totalBorrows.toAssetsUp().toUint();
+        return
+            vaultCache.cash.toUint() +
+            vaultCache.totalBorrows.toAssetsUp().toUint();
     }
 }

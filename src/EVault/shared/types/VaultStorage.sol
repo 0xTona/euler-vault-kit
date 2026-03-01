@@ -10,6 +10,9 @@ import {UserStorage} from "./UserStorage.sol";
 /// @notice This struct is used to hold all of the vault's permanent storage
 /// @dev Note that snapshots are not a part of this struct, as they might be reimplemented as transient storage
 struct VaultStorage {
+    //@note
+    //Intention
+    //  - accumulatedFee: shares of fee accumulated
     // Packed slot 6 + 14 + 2 + 2 + 4 + 1 + 1 = 30
     // A timestamp of the last interest accumulator update
     uint48 lastInterestAccumulatorUpdate;
@@ -25,13 +28,11 @@ struct VaultStorage {
     bool reentrancyLocked;
     // A flag indicating if the vault snapshot has already been initialized for the currently executing batch
     bool snapshotInitialized;
-
     // Packed slot 14 + 18 = 32
     // Sum of all user shares
     Shares totalShares;
     // Sum of all user debts
     Owed totalBorrows;
-
     // Packed slot 14 + 2 + 2 + 4 = 22
     // Interest fees accrued since the last fee conversion
     Shares accumulatedFees;
@@ -41,10 +42,8 @@ struct VaultStorage {
     uint16 liquidationCoolOffTime;
     // A bitfield of vault configuration options
     Flags configFlags;
-
     // Current interest accumulator
     uint256 interestAccumulator;
-
     // Packed slot 20 + 2 + 9 = 31
     // Address of the interest rate model contract. If not set, 0% interest is applied
     address interestRateModel;
@@ -52,25 +51,20 @@ struct VaultStorage {
     ConfigAmount interestFee;
     // Current interest rate applied to outstanding borrows
     uint72 interestRate;
-
     // Name of the shares token (eToken)
     string name;
     // Symbol of the shares token (eToken)
     string symbol;
-
     // Address of the vault's creator
     address creator;
-
     // Address of the vault's governor
     address governorAdmin;
     // Address which receives governor fees
     address feeReceiver;
     // Address which will be called for enabled hooks
     address hookTarget;
-
     // User accounts
     mapping(address account => UserStorage) users;
-
     // LTV configuration for collaterals
     mapping(address collateral => LTVConfig) ltvLookup;
     // List of addresses which were at any point configured as collateral

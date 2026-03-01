@@ -9,7 +9,8 @@ uint256 constant INTERNAL_DEBT_PRECISION_SHIFT = 31;
 uint256 constant MAX_SANE_AMOUNT = type(uint112).max;
 // max debt amount fits in uint144 (112 + 31 bits).
 // Last 31 bits are zeros to ensure max debt rounded up equals max sane amount.
-uint256 constant MAX_SANE_DEBT_AMOUNT = uint256(MAX_SANE_AMOUNT) << INTERNAL_DEBT_PRECISION_SHIFT;
+uint256 constant MAX_SANE_DEBT_AMOUNT = uint256(MAX_SANE_AMOUNT) <<
+    INTERNAL_DEBT_PRECISION_SHIFT;
 // proxy trailing calldata length in bytes.
 // Three addresses, 20 bytes each: vault underlying asset, oracle and unit of account + 4 empty bytes.
 uint256 constant PROXY_METADATA_LENGTH = 64;
@@ -60,5 +61,15 @@ uint32 constant CFG_MAX_VALUE = 1 << 2;
 // EVC authentication
 
 // in order to perform these operations, the account doesn't need to have the vault installed as a controller
-uint32 constant CONTROLLER_NEUTRAL_OPS = OP_DEPOSIT | OP_MINT | OP_WITHDRAW | OP_REDEEM | OP_TRANSFER | OP_SKIM
-    | OP_REPAY | OP_REPAY_WITH_SHARES | OP_CONVERT_FEES | OP_FLASHLOAN | OP_TOUCH | OP_VAULT_STATUS_CHECK;
+uint32 constant CONTROLLER_NEUTRAL_OPS = OP_DEPOSIT |
+    OP_MINT |
+    OP_WITHDRAW |
+    OP_REDEEM |
+    OP_TRANSFER |
+    OP_SKIM |
+    OP_REPAY |
+    OP_REPAY_WITH_SHARES |
+    OP_CONVERT_FEES |
+    OP_FLASHLOAN |
+    OP_TOUCH |
+    OP_VAULT_STATUS_CHECK;
