@@ -21,6 +21,7 @@ abstract contract BorrowUtils is Base {
         //@note
         //Intention
         //  Get the current owed amount after applying interest
+        //      owed * vaultCache.interestAccumulator / user's interestAccumulator
 
         // Don't bother loading the user's accumulator
         if (owed.isZero()) return Owed.wrap(0);

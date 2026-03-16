@@ -134,6 +134,11 @@ abstract contract EVCClient is Storage, Events, Errors {
         address from,
         address receiver
     ) internal virtual {
+        //@note
+        //Intention
+        //  `from` has enabled this vault as a controller
+        //  Force transfer of collateral from `from` to `receiver`
+
         evc.controlCollateral(
             collateral,
             from,
@@ -182,6 +187,11 @@ abstract contract EVCClient is Storage, Events, Errors {
     function getLastAccountStatusCheckTimestamp(
         address account
     ) internal view returns (uint256) {
+        //@note
+        //Intention
+        //  Last time:
+        //   - requireAccountStatusCheck()
+        //   - requireAccountAndVaultStatusCheck()
         return evc.getLastAccountStatusCheckTimestamp(account);
     }
 

@@ -12,7 +12,15 @@ import "../Constants.sol";
 /// @author Euler Labs (https://www.eulerlabs.com/)
 /// @notice The library provides helper functions for working with proxy meta data
 library ProxyUtils {
-    function metadata() internal pure returns (IERC20 asset, IPriceOracle oracle, address unitOfAccount) {
+    function metadata()
+        internal
+        pure
+        returns (IERC20 asset, IPriceOracle oracle, address unitOfAccount)
+    {
+        //@note
+        //Follow-up
+        //  Why can't I see calldata?
+
         assembly {
             asset := shr(96, calldataload(sub(calldatasize(), 60)))
             oracle := shr(96, calldataload(sub(calldatasize(), 40)))
@@ -24,7 +32,12 @@ library ProxyUtils {
     // metadata
     function useViewCaller() internal pure returns (address viewCaller) {
         assembly {
-            viewCaller := shr(96, calldataload(sub(calldatasize(), add(PROXY_METADATA_LENGTH, 20))))
+            viewCaller := shr(
+                96,
+                calldataload(
+                    sub(calldatasize(), add(PROXY_METADATA_LENGTH, 20))
+                )
+            )
         }
     }
 }
